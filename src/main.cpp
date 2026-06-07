@@ -6,26 +6,16 @@
 #include <ESPmDNS.h>
 #include "cmd.h"
 #include "config.h"
+#include "sendData.h"
+#include "position.h"
 
-// ================= CAPTEURS =================
-#define capteurGauche 35
-#define capteurDroite 34
-// ================= MOTEURS =================
-#define IN1 27
-#define IN2 26
-#define ENA 14
-#define IN3 25
-#define IN4 33
-#define ENB 12
-// ================= PWM =================
-#define freqPWM 20000
-#define resolutionPWM 8
-#define canalENA 0
-#define canalENB 1
-// ================= PARAMS =================
+int VITESSE_BASE  = 190;
+int VITESSE_VIRAGE = 190;
+int SEUIL_LIGNE   = 2000;
 
-#define SEUIL_LIGNE 2000
+#define LED_PIN 2
 
+WiFiManager wm; 
 
 Mode modeActuel = MODE_AUTONOME;
 
@@ -40,6 +30,7 @@ void onWsEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
   case WStype_CONNECTED:
     Serial.printf("[WS] Client %d connecté\n", num);
     ws.sendTXT(num, "{\"status\":\"connecte\",\"ip\":\"" + WiFi.localIP().toString() + "\"}");
+    
     break;
 
   case WStype_DISCONNECTED:
@@ -57,15 +48,6 @@ void onWsEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
   }
 }
 
-// Envoie des données au client WebSocket toutes les 150ms
-void sendData()
-{
-  int valeur = 42; // exemple de valeur à envoyer
-
-  String json = "{\"valeur\":" + String(42) + ", \"mode\":" + String(modeActuel) + "}";
-  
-  ws.broadcastTXT(json);
-}
 
 void demarrerWebSocket()
 {
@@ -77,7 +59,7 @@ void demarrerWebSocket()
 // ================= WIFI =================
 void lancerConfigWifi()
 {
-  WiFiManager wm;
+ 
   // wm.resetSettings(); // décommenter pour forcer le portail à chaque fois
   // wm.resetSettings(); // force le portail à CHAQUE démarrage
 
@@ -154,6 +136,7 @@ void setup()
   MDNS.begin("robotPiste");
   MDNS.addService("http", "tcp", 80);
   MDNS.addService("ws", "tcp", 81);
+  
 }
 
 // ================= LOOP =================
@@ -162,18 +145,24 @@ void loop()
   dnsServer.processNextRequest();
   ws.loop();
 
-  sendData();
-  int valG = analogRead(capteurGauche);
-  int valD = analogRead(capteurDroite);
+  valG = analogRead(capteurGauche);
+  valD = analogRead(capteurDroite);
 
   bool ligneG = valG > SEUIL_LIGNE;
   bool ligneD = valD > SEUIL_LIGNE;
 
+  sendData(ligneG, ligneD);
+
   Serial.printf("G:%4d D:%4d | ligneG:%d ligneD:%d\n", valG, valD, ligneG, ligneD);
+
+  if (modeActuel == NOTHING)
+  {
+    setMoteurs(0, 0);
+  }
 
   if (modeActuel == MODE_MANUEL)
   {
-
+     
   }
 
   if (modeActuel == MODE_AUTONOME)

@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ROBOT PISTE — Dashboard</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;500;700&display=swap');
+
+  :root {
+    --bg:       #080c10;
+    --panel:    #0d1318;
+    --border:   #1a2530;
+    --accent:   #00f5c4;
+    --accent2:  #ff4d6d;
+    --accent3:  #f5c400;
+    --dim:      #2a3a48;
+    --text:     #c8dce8;
+    --mono:     'Share Tech Mono', monospace;
+    --sans:     'Rajdhani', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    overflow: hidden;
+  }
+
+  /* scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,245,196,0.015) 2px,
+      rgba(0,245,196,0.015) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--accent);
+    letter-spacing: 4px;
+    text-transform: uppercase;
+  }
+
+  .logo span { color: var(--accent2); }
+
+  .status-bar {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+  }
+
+  .status-item {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--dim);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .status-item.active { color: var(--accent); }
+  .status-item.warn   { color: var(--accent3); }
+  .status-item.err    { color: var(--accent2); }
+
+  .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pulse 1.4s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+  }
+
+  /* MAIN LAYOUT */
+  main {
+    display: grid;
+    grid-template-columns: 220px 1fr 220px;
+    gap: 1px;
+    background: var(--border);
+    overflow: hidden;
+  }
+
+  /* PANELS */
+  .panel {
+    background: var(--panel);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow-y: auto;
+  }
+
+  .panel-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--dim);
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+
+  /* METRIC CARD */
+  .metric {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .metric-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--dim);
+    text-transform: uppercase;
+  }
+
+  .metric-value {
+    font-family: var(--mono);
+    font-size: 22px;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  .metric-value.warn  { color: var(--accent3); }
+  .metric-value.err   { color: var(--accent2); }
+  .metric-value.small { font-size: 14px; }
+
+  /* SENSOR BAR */
+  .sensor-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .sensor-label {
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--dim);
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .bar-track {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.1s linear;
+  }
+
+  /* LIGNE STATE */
+  .ligne-state {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .ligne-cell {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px;
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--dim);
+    transition: all 0.1s;
+  }
+
+  .ligne-cell.on {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(0,245,196,0.05);
+    box-shadow: 0 0 8px rgba(0,245,196,0.2);
+  }
+
+  /* CANVAS ZONE */
+  .canvas-zone {
+    background: var(--bg);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #traceCanvas {
+    display: block;
+  }
+
+  /* CANVAS OVERLAY INFO */
+  .canvas-overlay {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: rgba(0,245,196,0.4);
+    letter-spacing: 1px;
+    pointer-events: none;
+  }
+
+  .canvas-overlay div { margin-bottom: 2px; }
+
+  /* CONTROLS */
+  .ctrl-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    padding: 8px 12px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.15s;
+    width: 100%;
+    text-align: left;
+  }
+
+  .ctrl-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(0,245,196,0.05);
+  }
+
+  .ctrl-btn.danger:hover {
+    border-color: var(--accent2);
+    color: var(--accent2);
+    background: rgba(255,77,109,0.05);
+  }
+
+  /* SPEED SLIDER */
+  .slider-wrap { display: flex; flex-direction: column; gap: 6px; }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 2px;
+    background: var(--border);
+    outline: none;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+
+  /* LOG */
+  .log-box {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 8px;
+    font-family: var(--mono);
+    font-size: 10px;
+    overflow-y: auto;
+    color: var(--dim);
+    max-height: 140px;
+  }
+
+  .log-line { margin-bottom: 2px; }
+  .log-line.ok  { color: var(--accent); }
+  .log-line.err { color: var(--accent2); }
+
+  /* FOOTER */
+  footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--panel);
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+  }
+
+  /* IP INPUT */
+  .ip-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .ip-input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 5px 8px;
+    outline: none;
+    width: 160px;
+  }
+
+  .ip-input:focus { border-color: var(--accent); }
+
+  .connect-btn {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    padding: 5px 10px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.15s;
+  }
+
+  .connect-btn:hover {
+    background: rgba(0,245,196,0.1);
+  }
+
+  /* ROBOT INDICATOR */
+  .robot-arrow {
+    position: absolute;
+    width: 0; height: 0;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">ROBOT<span>PISTE</span> // DASHBOARD</div>
+  <div class="status-bar">
+    <div class="status-item" id="wsStatus">
+      <div class="dot"></div>
+      <span>DISCONNECTED</span>
+    </div>
+    <div class="status-item" id="ipDisplay">IP: ---.---.---.---</div>
+    <div class="status-item" id="rssiDisplay">RSSI: --- dBm</div>
+    <div class="status-item" id="heapDisplay">HEAP: --- B</div>
+  </div>
+</header>
+
+<main>
+  <!-- LEFT PANEL -->
+  <div class="panel">
+    <div class="panel-title">// Capteurs</div>
+
+    <div class="sensor-row">
+      <div class="sensor-label"><span>GAUCHE</span><span id="valGNum">0</span></div>
+      <div class="bar-track"><div class="bar-fill" id="barG" style="width:0%"></div></div>
+    </div>
+    <div class="sensor-row">
+      <div class="sensor-label"><span>DROITE</span><span id="valDNum">0</span></div>
+      <div class="bar-track"><div class="bar-fill" id="barD" style="width:0%"></div></div>
+    </div>
+
+    <div class="panel-title" style="margin-top:4px">// Ligne détectée</div>
+    <div class="ligne-state">
+      <div class="ligne-cell" id="cellG">G</div>
+      <div class="ligne-cell" id="cellD">D</div>
+    </div>
+
+    <div class="panel-title" style="margin-top:4px">// Position</div>
+    <div class="metric">
+      <div class="metric-label">X (cm)</div>
+      <div class="metric-value" id="posX">0.00</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Y (cm)</div>
+      <div class="metric-value" id="posY">0.00</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Angle (°)</div>
+      <div class="metric-value small" id="posAngle">0</div>
+    </div>
+  </div>
+
+  <!-- CANVAS -->
+  <div class="canvas-zone" id="canvasZone">
+    <canvas id="traceCanvas"></canvas>
+    <div class="canvas-overlay">
+      <div id="overlayPts">PTS: 0</div>
+      <div id="overlayZoom">ZOOM: 1.0x</div>
+      <div id="overlayMode">MODE: --</div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="panel">
+    <div class="panel-title">// Connexion</div>
+    <div class="ip-row">
+      <input class="ip-input" id="ipInput" type="text" placeholder="192.168.x.x" value="">
+    </div>
+    <button class="connect-btn" id="connectBtn" onclick="toggleConnect()">CONNECT</button>
+
+    <div class="panel-title" style="margin-top:4px">// Contrôle</div>
+    <div class="slider-wrap">
+      <div class="sensor-label"><span>VITESSE</span><span id="vitVal">190</span></div>
+      <input type="range" id="vitSlider" min="50" max="255" value="190"
+        oninput="document.getElementById('vitVal').textContent=this.value"
+        onchange="sendCmd({cmd:'set_vitesse',valeur:parseInt(this.value)})">
+    </div>
+
+    <button class="ctrl-btn" onclick="sendCmd({cmd:'reset_position'})">↺ RESET POSITION</button>
+    <button class="ctrl-btn" onclick="clearTrace()">⌫ CLEAR TRACE</button>
+    <button class="ctrl-btn danger" onclick="sendCmd({cmd:'change_wifi'})">⚡ CHANGE WIFI</button>
+
+    <div class="panel-title" style="margin-top:4px">// Système</div>
+    <div class="metric">
+      <div class="metric-label">Uptime</div>
+      <div class="metric-value small" id="uptimeVal">--</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Mode</div>
+      <div class="metric-value small" id="modeVal">--</div>
+    </div>
+
+    <div class="panel-title" style="margin-top:4px">// Log</div>
+    <div class="log-box" id="logBox"></div>
+  </div>
+</main>
+
+<footer>
+  <span id="footerPts">POINTS: 0</span>
+  <span>ROBOT PISTE DASHBOARD v1.0</span>
+  <span id="footerTime">--:--:--</span>
+</footer>
+
+<script>
+// ── STATE ────────────────────────────────────────────────────────────────────
+let ws = null;
+let trace = [];           // [{x, y}]
+let zoom = 1;
+let offsetX = 0, offsetY = 0;
+let isDragging = false;
+let dragStart = {x:0, y:0};
+let lastOffset = {x:0, y:0};
+let autoFollow = true;
+
+const MODES = ['NOTHING', 'AUTONOME', 'MANUEL', 'BLOCKLY'];
+
+// ── CANVAS SETUP ─────────────────────────────────────────────────────────────
+const canvas = document.getElementById('traceCanvas');
+const ctx    = canvas.getContext('2d');
+const zone   = document.getElementById('canvasZone');
+
+function resizeCanvas() {
+  canvas.width  = zone.clientWidth;
+  canvas.height = zone.clientHeight;
+  draw();
+}
+
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// ── DRAW ──────────────────────────────────────────────────────────────────────
+function worldToScreen(wx, wy) {
+  const cx = canvas.width  / 2 + offsetX;
+  const cy = canvas.height / 2 + offsetY;
+  return {
+    x: cx + wx * zoom,
+    y: cy - wy * zoom   // Y inversé : haut = positif
+  };
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const cx = canvas.width  / 2 + offsetX;
+  const cy = canvas.height / 2 + offsetY;
+
+  // Grille
+  ctx.strokeStyle = 'rgba(26,37,48,0.8)';
+  ctx.lineWidth = 1;
+  const gridStep = 50 * zoom;
+  const startX = ((cx % gridStep) + gridStep) % gridStep;
+  const startY = ((cy % gridStep) + gridStep) % gridStep;
+
+  for (let x = startX; x < canvas.width; x += gridStep) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+  }
+  for (let y = startY; y < canvas.height; y += gridStep) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+  }
+
+  // Axes
+  ctx.strokeStyle = 'rgba(0,245,196,0.15)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, canvas.height); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(canvas.width, cy); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Origine
+  ctx.fillStyle = 'rgba(0,245,196,0.5)';
+  ctx.beginPath();
+  const o = worldToScreen(0, 0);
+  ctx.arc(o.x, o.y, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Tracé
+  if (trace.length < 2) return;
+
+  ctx.lineWidth = 2;
+  ctx.lineJoin  = 'round';
+  ctx.lineCap   = 'round';
+
+  for (let i = 1; i < trace.length; i++) {
+    const t  = i / trace.length;
+    // couleur : cyan → magenta selon progression
+    const r  = Math.round(t * 255);
+    const g  = Math.round((1 - t) * 245);
+    const b  = Math.round(t * 150 + (1-t)*196);
+    ctx.strokeStyle = `rgb(${r},${g},${b})`;
+
+    const p0 = worldToScreen(trace[i-1].x, trace[i-1].y);
+    const p1 = worldToScreen(trace[i].x,   trace[i].y);
+    ctx.beginPath();
+    ctx.moveTo(p0.x, p0.y);
+    ctx.lineTo(p1.x, p1.y);
+    ctx.stroke();
+  }
+
+  // Point courant (robot)
+  if (trace.length > 0) {
+    const last = worldToScreen(trace[trace.length-1].x, trace[trace.length-1].y);
+    ctx.fillStyle = '#00f5c4';
+    ctx.shadowColor = '#00f5c4';
+    ctx.shadowBlur  = 12;
+    ctx.beginPath();
+    ctx.arc(last.x, last.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
+
+// ── AUTO FOLLOW ───────────────────────────────────────────────────────────────
+function followRobot() {
+  if (!autoFollow || trace.length === 0) return;
+  const last = trace[trace.length - 1];
+  offsetX = -(last.x * zoom);
+  offsetY =  (last.y * zoom);
+}
+
+// ── ZOOM ─────────────────────────────────────────────────────────────────────
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.1 : 0.9;
+  zoom = Math.min(Math.max(zoom * factor, 0.1), 50);
+  document.getElementById('overlayZoom').textContent = `ZOOM: ${zoom.toFixed(1)}x`;
+  draw();
+}, { passive: false });
+
+// ── DRAG ─────────────────────────────────────────────────────────────────────
+canvas.addEventListener('mousedown', e => {
+  isDragging = true;
+  autoFollow  = false;
+  dragStart   = {x: e.clientX, y: e.clientY};
+  lastOffset  = {x: offsetX, y: offsetY};
+});
+
+window.addEventListener('mousemove', e => {
+  if (!isDragging) return;
+  offsetX = lastOffset.x + (e.clientX - dragStart.x);
+  offsetY = lastOffset.y + (e.clientY - dragStart.y);
+  draw();
+});
+
+window.addEventListener('mouseup', () => { isDragging = false; });
+
+// Double-clic → recentrer sur robot
+canvas.addEventListener('dblclick', () => {
+  autoFollow = true;
+  followRobot();
+  draw();
+});
+
+// ── WEBSOCKET ────────────────────────────────────────────────────────────────
+function toggleConnect() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.close();
+    return;
+  }
+  const ip  = document.getElementById('ipInput').value.trim();
+  const url = ip ? `ws://${ip}:81` : null;
+  if (!url) { log('Entrez une IP', 'err'); return; }
+  connect(url);
+}
+
+function connect(url) {
+  log(`Connexion → ${url}`, 'ok');
+  ws = new WebSocket(url);
+
+  ws.onopen = () => {
+    setStatus(true);
+    log('Connecté', 'ok');
+    document.getElementById('connectBtn').textContent = 'DISCONNECT';
+  };
+
+  ws.onclose = () => {
+    setStatus(false);
+    log('Déconnecté', 'err');
+    document.getElementById('connectBtn').textContent = 'CONNECT';
+  };
+
+  ws.onerror = () => log('Erreur WebSocket', 'err');
+
+  ws.onmessage = e => {
+    try {
+      const d = JSON.parse(e.data);
+      updateUI(d);
+    } catch(_) {}
+  };
+}
+
+function sendCmd(obj) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) { log('Non connecté', 'err'); return; }
+  ws.send(JSON.stringify(obj));
+  log(`→ ${JSON.stringify(obj)}`);
+}
+
+// ── UI UPDATE ────────────────────────────────────────────────────────────────
+function updateUI(d) {
+  // Capteurs
+  if (d.valG !== undefined) {
+    document.getElementById('valGNum').textContent = d.valG;
+    document.getElementById('barG').style.width    = (d.valG / 4095 * 100).toFixed(1) + '%';
+  }
+  if (d.valD !== undefined) {
+    document.getElementById('valDNum').textContent = d.valD;
+    document.getElementById('barD').style.width    = (d.valD / 4095 * 100).toFixed(1) + '%';
+  }
+
+  // Ligne
+  const cG = document.getElementById('cellG');
+  const cD = document.getElementById('cellD');
+  if (d.ligneG !== undefined) cG.className = 'ligne-cell' + (d.ligneG ? ' on' : '');
+  if (d.ligneD !== undefined) cD.className = 'ligne-cell' + (d.ligneD ? ' on' : '');
+
+  // Position
+  if (d.x !== undefined) {
+    document.getElementById('posX').textContent   = d.x.toFixed(2);
+    document.getElementById('posY').textContent   = d.y.toFixed(2);
+    document.getElementById('posAngle').textContent = (d.angle % 360).toFixed(0) + '°';
+
+    // Ajouter au tracé
+    trace.push({x: d.x, y: d.y});
+    if (trace.length > 5000) trace.shift(); // limite mémoire
+
+    document.getElementById('overlayPts').textContent = `PTS: ${trace.length}`;
+    document.getElementById('footerPts').textContent  = `POINTS: ${trace.length}`;
+
+    followRobot();
+    draw();
+  }
+
+  // Réseau
+  if (d.ip)   document.getElementById('ipDisplay').textContent   = `IP: ${d.ip}`;
+  if (d.rssi) {
+    const el = document.getElementById('rssiDisplay');
+    el.textContent = `RSSI: ${d.rssi} dBm`;
+    el.className   = 'status-item ' + (d.rssi > -65 ? 'active' : d.rssi > -80 ? 'warn' : 'err');
+  }
+  if (d.heap) document.getElementById('heapDisplay').textContent = `HEAP: ${(d.heap/1024).toFixed(0)}K`;
+
+  // Système
+  if (d.uptime !== undefined) {
+    const h = Math.floor(d.uptime / 3600);
+    const m = Math.floor((d.uptime % 3600) / 60);
+    const s = d.uptime % 60;
+    document.getElementById('uptimeVal').textContent =
+      `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+  if (d.mode !== undefined) {
+    document.getElementById('modeVal').textContent        = MODES[d.mode] || d.mode;
+    document.getElementById('overlayMode').textContent    = `MODE: ${MODES[d.mode] || d.mode}`;
+  }
+  if (d.vitesseBase) {
+    document.getElementById('vitSlider').value = d.vitesseBase;
+    document.getElementById('vitVal').textContent = d.vitesseBase;
+  }
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function setStatus(connected) {
+  const el = document.getElementById('wsStatus');
+  el.className  = 'status-item ' + (connected ? 'active' : 'err');
+  el.innerHTML  = `<div class="dot"></div><span>${connected ? 'CONNECTED' : 'DISCONNECTED'}</span>`;
+}
+
+function log(msg, type='') {
+  const box  = document.getElementById('logBox');
+  const line = document.createElement('div');
+  const now  = new Date();
+  const ts   = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+  line.className   = 'log-line ' + type;
+  line.textContent = `[${ts}] ${msg}`;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+  if (box.children.length > 60) box.removeChild(box.firstChild);
+}
+
+function clearTrace() {
+  trace = [];
+  offsetX = 0; offsetY = 0;
+  autoFollow = true;
+  draw();
+  log('Tracé effacé');
+}
+
+// Clock
+setInterval(() => {
+  const now = new Date();
+  document.getElementById('footerTime').textContent =
+    `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+}, 1000);
+
+log('Dashboard initialisé', 'ok');
+log('Entrez l\'IP et connectez-vous');
+</script>
+</body>
+</html>
